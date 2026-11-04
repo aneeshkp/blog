@@ -2,15 +2,17 @@
 
 *A hands-on exploration of operator-managed batch inference, Kubernetes resources, and asynchronous request processing.*
 
-> **Version note:** This walkthrough follows the 3.6 handoff and pinned source commits. The handoff says to confirm promoted images/charts and the 3.6 support phase. Published 3.5 docs call batch inference Technology Preview; I found no 3.6-specific support statement. Cluster/build details remain placeholders.
-
-> **Validation boundary:** I checked the sample CR against the pinned generated OpenAPI schema, parsed the YAML/JSONL, and ran `helm lint`/`helm template` on the pinned charts. I did not run CEL admission, operator reconciliation, Gateway routing/authentication, or a live end-to-end request.
-
 ## Why batch inference?
 
-Imagine scoring a document corpus overnight or running an evaluation set against a new model. The work is latency-insensitive, but the team still needs job tracking, cancellation, and results after the client disconnects.
+Imagine scoring a document corpus overnight or evaluating a new model. These jobs can take hours, but the team still needs progress, cancellation, retries, and results after the submitting client disconnects.
 
-Instead of building a queue and retry system around individual chat requests, a client can upload JSONL to the llm-d Batch Gateway, submit a job, poll it, and download results. The gateway dispatches requests through the existing llm-d serving path. Its pinned source implements the [batch routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/batch/batch_handler.go#L65-L91) and [file routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/file/file_handler.go#L68-L100).
+Without a batch service, every application must build that job layer around synchronous chat calls. The llm-d Batch Gateway provides an OpenAI-compatible Files and Batches workflow: upload JSONL, submit one job, poll its persisted state, and retrieve output or error files after the client disconnects. It sends requests through the existing llm-d serving path. The pinned source implements the [batch routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/batch/batch_handler.go#L65-L91) and [file routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/file/file_handler.go#L68-L100).
+
+In this walkthrough, we enable the operator through an existing RHOAI DataScienceCluster, inspect the resources it creates, and submit a small batch. The cluster table is a template to complete with your test environment.
+
+By the end, you should know which operator owns each resource, what infrastructure your platform team must provide, and how to follow a batch job from upload to result file.
+
+> **Version scope:** This walkthrough follows the 3.6 handoff and pinned source commits. Confirm the image/chart bundle and support phase for your exact release before production use; Red Hat's published 3.5 guide labels batch inference Technology Preview. Cluster-specific values are intentionally left for you to fill in.
 
 ## What Batch Gateway adds to llm-d
 
@@ -43,7 +45,7 @@ That queue is distinct from the PostgreSQL queue of batch *jobs*. In the 3.6-pin
 
 ## Inside the operator reconciliation chain
 
-On OpenShift, enabling the Batch Gateway Operator and creating a Batch Gateway workload are separate operations. I traced the ownership path in the 3.6 handoff and the RHOAI-side AI Gateway Operator source:
+On OpenShift, enabling the Batch Gateway Operator and creating a workload are separate operations. The RHOAI operator follows the DataScienceCluster setting and creates an `AIGateway` CR; the AI Gateway Operator then deploys the Batch Gateway Operator. The workload CR comes afterward:
 
 ```text
 DataScienceCluster
@@ -61,11 +63,15 @@ For each `LLMBatchGateway`, the controller validates the spec, resolves the cred
 
 The generated core components are an API server Deployment, a processor StatefulSet, a garbage-collector Deployment, and an async-processor Deployment. The [operator reconcile test](https://github.com/opendatahub-io/llm-d-batch-gateway-operator/blob/93f1c2c021a7ebae6f44c9e1dd05d7c9a34a46e8/internal/controller/llmbatchgateway_controller_test.go#L897-L1001) checks three Deployments, one StatefulSet, Services, ConfigMaps, and ServiceAccounts. If enabled, the batch chart can render a Gateway API HTTPRoute, a cert-manager Certificate, and monitoring resources. Deleting the `LLMBatchGateway` removes its owned resources through owner references.
 
-The public `llm-d/llm-d-batch-gateway` repo is upstream, but the AI Gateway Operator's RHOAI branch pins a specific Batch Gateway Operator commit; its Makefile further pins ODH forks of the Batch Gateway and llm-d-async sources. I use those SHAs for 3.6 code behavior rather than an arbitrary upstream default branch (see the source notes).
+| Owner | What it manages |
+|---|---|
+| RHOAI and AI Gateway Operators | Platform integration and Batch Gateway Operator installation |
+| Batch Gateway Operator | API server, processor, async processor, garbage collector, and configured optional resources |
+| Platform team | PostgreSQL, Redis/Valkey or experimental SQL, S3/filesystem storage, model routing, and Gateway policies |
 
 ## My Kubernetes cluster
 
-No live cluster details were supplied for this draft, so replace each placeholder with values from the cluster used for publication. The commands below are inspection commands, not captured output.
+Record the environment used for the walkthrough here. Replace each placeholder from your cluster; the commands below are inspection commands, not captured output.
 
 | Item | Value to record |
 |---|---|
