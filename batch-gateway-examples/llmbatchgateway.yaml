@@ -1,0 +1,60 @@
+apiVersion: batch.llm-d.ai/v1alpha1
+kind: LLMBatchGateway
+metadata:
+  name: batch-gateway
+  namespace: batch-inference
+spec:
+  secretRef:
+    name: batch-gateway-secrets
+  dbBackend: postgresql
+  fileStorage:
+    s3:
+      bucket: <batch-bucket>
+      region: <s3-region>
+      endpoint: https://<s3-endpoint>
+      accessKeyId: <s3-access-key-id>
+      usePathStyle: true
+  apiServer:
+    replicas: 1
+    config:
+      batchAPI:
+        passThroughHeaders:
+          - Authorization
+  processor:
+    replicas: 1
+    modelGateways:
+      llama-3-8b:
+        inferencePoolName: <inference-pool-name>
+        inferenceObjective: batch-sheddable
+    asyncConfig:
+      concurrency: 4
+      drainTimeout: 2m
+      resultPollTimeout: 30s
+      inferenceGateway:
+        url: http://<internal-gateway-service>.<gateway-namespace>.svc.cluster.local/<model-namespace>/<model-name>
+      prometheusURL: http://<prometheus-service>.<monitoring-namespace>.svc.cluster.local:9090
+      redis:
+        requestPathURL: /v1/chat/completions
+        pollIntervalMs: 1000
+        batchSize: 10
+        queuesConfig:
+          - name: llm-d-async:requests:<inference-pool-name>
+            workerPoolID: default
+            requestPathURL: /v1/chat/completions
+            gateType: prometheus-budget
+            gateParams:
+              pool: <inference-pool-name>
+              max_concurrency: "100"
+              baseline: "0.05"
+              fallback: "1.0"
+      workerPools:
+        - name: default
+          workers: 4
+  gc:
+    replicas: 1
+    interval: 30m
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - name: <external-gateway-name>
+        namespace: <gateway-namespace>

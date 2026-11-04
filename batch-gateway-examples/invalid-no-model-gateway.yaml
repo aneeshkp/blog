@@ -1,0 +1,17 @@
+apiVersion: batch.llm-d.ai/v1alpha1
+kind: LLMBatchGateway
+metadata:
+  name: invalid-no-model-gateway
+  namespace: batch-inference
+spec:
+  secretRef:
+    name: batch-gateway-secrets
+  fileStorage:
+    s3:
+      bucket: example-bucket
+  apiServer: {}
+  processor:
+    asyncConfig:
+      resultPollTimeout: 30s
+      redis: {}
+  gc: {}
