@@ -84,7 +84,7 @@
 
 **Verification:** Checklist has no unresolved source mismatch; remaining unknowns are explicit, not silently asserted.
 
-### Task 5: Commit and push the deliverables
+### Task 5: Commit and push the initial deliverables
 
 **Files:**
 - Commit: four requested deliverables, example directory, and this plan.
@@ -94,3 +94,17 @@
 - [x] Push `batch-gateway-operator-article` to the initially empty `aneeshkp/blog` repository.
 
 **Verification:** The initial content commit is `dbaf769`; the branch was pushed to `origin` and set to track the new remote branch. The plan completion update is committed separately.
+
+### Task 6: Add publication illustrations
+
+**Files:**
+- Create: `assets/batch-gateway-architecture.svg`
+- Create: `assets/batch-gateway-lifecycle.svg`
+- Update: `batch-gateway-operator-blog.md`, `batch-gateway-source-notes.md`, and `batch-gateway-review-checklist.md`
+
+- [x] Add a 16:9 architecture diagram that distinguishes operator ownership, external/platform responsibilities, PostgreSQL's batch-job queue, async request/result queues, file storage, and the existing model-serving route.
+- [x] Add a concentric batch-job/request lifecycle diagram with cancellation, request-error, configured file-storage retry, and expiry side paths.
+- [x] Embed both SVGs with descriptive alt text and captions; keep the SQL support/recovery caveat visible.
+- [x] Validate SVG XML and 16:9 geometry; render both in Chrome and inspect the images.
+
+**Verification:** Both SVGs are source-grounded from the pinned source notes; browser renders were visually reviewed. Release/support and live-cluster checks remain open in the review checklist.

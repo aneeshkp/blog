@@ -37,6 +37,8 @@
 
 ## Publication/editing checks
 
+- [x] Embed the 16:9 architecture and concentric lifecycle SVGs with descriptive alt text and captions; visually inspect browser renders.
+- [x] Keep the lifecycle retry branch limited to configured transient file-storage retries; do not imply generic inference retries.
 - [ ] Fill the cluster inventory placeholders with actual `oc`/`kubectl` evidence or keep the fields explicitly marked as placeholders in an editorial draft.
 - [ ] Do not add sample `kubectl` output that was not captured from a real cluster.
 - [ ] Check article prose length is 2,200–3,000 words excluding code blocks.

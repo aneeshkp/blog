@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Batch Gateway job and request lifecycle</title>
+  <desc id="desc">The outer batch-job loop claims work from PostgreSQL, runs the inner per-JSONL-request loop, checkpoints progress, and continues while requests remain. Each request travels through the async request queue, the model route, and the result queue. Side paths show eligible cancellation, per-request error output, configured transient file-storage retries, and retention expiry followed by garbage collection.</desc>
+  <defs>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#1670c5"/></marker>
+    <marker id="red-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#c9190b"/></marker>
+    <marker id="purple-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#6842c2"/></marker>
+    <marker id="green-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#238636"/></marker>
+    <marker id="gray-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#68717d"/></marker>
+    <style>
+      text{font-family:Arial,Helvetica,sans-serif;fill:#182230}.title{font-size:34px;font-weight:700}.sub{font-size:18px;fill:#4b5563}.sect{font-size:20px;font-weight:700}.nt{font-size:18px;font-weight:700}.compact{font-size:14px}.ns{font-size:14px;fill:#4b5563}.sm{font-size:14px;fill:#374151}.tiny{font-size:13px;fill:#4b5563}.lab{font-size:13px;font-weight:700;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}.card{fill:#fff;stroke:#aeb7c2;stroke-width:1.4;rx:9}.job{fill:none;stroke:#1670c5;stroke-width:2.6;marker-end:url(#blue-arrow)}.req{fill:none;stroke:#6842c2;stroke-width:2.8;marker-end:url(#purple-arrow)}.res{fill:none;stroke:#238636;stroke-width:2.8;marker-end:url(#green-arrow)}.side{fill:none;stroke:#c9190b;stroke-width:2.2;stroke-dasharray:7 5;marker-end:url(#red-arrow)}.expiry{fill:none;stroke:#68717d;stroke-width:2.2;stroke-dasharray:7 5;marker-end:url(#gray-arrow)}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#fff"/>
+  <text class="title" x="36" y="42">Batch Gateway: from one batch job to per-request results</text>
+  <text class="sub" x="36" y="70">The outer loop manages a job; the inner loop repeats for each JSONL request.</text>
+
+  <rect x="24" y="112" width="920" height="754" rx="16" fill="#f7faff" stroke="#c6d5e5"/>
+  <text class="sect" x="48" y="143">OUTER LOOP · batch job orchestration</text>
+  <text class="tiny" x="48" y="163">Claim → process requests → checkpoint → continue until the job is terminal.</text>
+
+  <circle cx="590" cy="470" r="280" fill="none" stroke="#d7e5f3" stroke-width="16"/>
+  <path class="job" d="M654 222C745 245 818 318 862 410"/>
+  <path class="job" d="M875 505C852 595 773 676 678 718"/>
+  <path class="job" d="M480 750C391 715 321 627 230 536"/>
+
+  <rect class="card" x="500" y="170" width="180" height="76"/>
+  <text class="nt" x="590" y="200" text-anchor="middle">Claim batch job</text>
+  <text class="ns" x="590" y="221" text-anchor="middle">PostgreSQL job queue</text>
+
+  <rect class="card" x="810" y="415" width="130" height="90"/>
+  <text class="nt compact" x="875" y="449" text-anchor="middle">Batch processor</text>
+  <text class="ns" x="875" y="472" text-anchor="middle">active job</text>
+  <text class="tiny" x="875" y="491" text-anchor="middle">runs inner loop</text>
+
+  <rect class="card" x="480" y="712" width="200" height="76"/>
+  <text class="nt" x="580" y="742" text-anchor="middle">Checkpoint progress</text>
+  <text class="ns" x="580" y="763" text-anchor="middle">outputs + job status</text>
+
+  <polygon points="230,388 310,460 230,532 150,460" fill="#fff" stroke="#aeb7c2" stroke-width="1.5"/>
+  <text class="nt" x="230" y="456" text-anchor="middle">More work?</text>
+  <text class="ns" x="230" y="475" text-anchor="middle">continue / finalize</text>
+
+  <path class="job" d="M310 452V270H875V410"/>
+  <text class="lab" x="590" y="261" text-anchor="middle">yes · continue this job</text>
+  <path class="job" d="M230 532V665H998"/>
+  <text class="lab" x="770" y="654" text-anchor="middle">no · finalize</text>
+
+  <circle cx="590" cy="470" r="145" fill="#fff" stroke="#ded7f2" stroke-width="12"/>
+  <path class="req" d="M620 332C663 347 690 381 704 421"/>
+  <path class="job" d="M722 495C709 535 677 565 620 590"/>
+  <path class="res" d="M510 600C464 583 427 547 404 495"/>
+  <path class="res" d="M404 429C425 384 463 348 510 330"/>
+
+  <rect class="card" x="520" y="300" width="140" height="60"/>
+  <text class="nt" x="590" y="326" text-anchor="middle">Read JSONL line</text>
+  <text class="ns" x="590" y="346" text-anchor="middle">core processor</text>
+
+  <rect class="card" x="645" y="429" width="160" height="70"/>
+  <text class="nt compact" x="725" y="457" text-anchor="middle">Async Request Queue</text>
+  <text class="ns" x="725" y="478" text-anchor="middle">async dispatch</text>
+
+  <rect class="card" x="520" y="570" width="140" height="62"/>
+  <text class="nt" x="590" y="596" text-anchor="middle">Inference call</text>
+  <text class="ns" x="590" y="616" text-anchor="middle">Gateway → model</text>
+
+  <rect class="card" x="375" y="429" width="160" height="70"/>
+  <text class="nt compact" x="455" y="457" text-anchor="middle">Async Result Queue</text>
+  <text class="ns" x="455" y="478" text-anchor="middle">correlate custom_id</text>
+
+  <rect x="540" y="429" width="100" height="70" rx="10" fill="#fff" stroke="#d6dbe1"/>
+  <text class="sm" x="590" y="452" text-anchor="middle">repeat per</text>
+  <text class="sm" x="590" y="470" text-anchor="middle">JSONL request</text>
+  <text class="tiny" x="590" y="488" text-anchor="middle">then checkpoint</text>
+
+  <path class="side" d="M940 450H978V208H998"/>
+  <path class="side" d="M660 600H960V348H998"/>
+
+  <rect x="1000" y="145" width="552" height="122" rx="12" fill="#fff7f6" stroke="#e7b6b1"/>
+  <text class="sect" x="1020" y="174">Cancellation · side path</text>
+  <text class="sm" x="1020" y="199">POST /v1/batches/{id}/cancel while the job is cancellable</text>
+  <text class="sm" x="1020" y="220">→ cancelling / cancelled; partial output and an error file may remain.</text>
+  <text class="tiny" x="1020" y="246">Cancellation is not the normal completion path.</text>
+
+  <rect x="1000" y="290" width="552" height="116" rx="12" fill="#fff" stroke="#e7b6b1"/>
+  <text class="sect" x="1020" y="319">Request failure · side path</text>
+  <text class="sm" x="1020" y="345">A failed request is represented in the error JSONL output;</text>
+  <text class="sm" x="1020" y="366">successful requests can still contribute output to the batch.</text>
+  <text class="tiny" x="1020" y="389">Retrieve it through the batch error_file_id when present.</text>
+
+  <rect x="1000" y="430" width="552" height="116" rx="12" fill="#fffaf0" stroke="#e4c47b"/>
+  <text class="sect" x="1020" y="459">Retry · file storage only</text>
+  <text class="sm" x="1020" y="485">Transient file-storage errors may use spec.fileStorage.retry</text>
+  <text class="sm" x="1020" y="506">to configure attempts and backoff; retry the file operation only.</text>
+  <text class="tiny" x="1020" y="529">This is not a generic inference retry policy.</text>
+  <path class="side" d="M1490 484A22 22 0 1 1 1485 520"/>
+
+  <rect x="1000" y="570" width="552" height="182" rx="12" fill="#f7f8fa" stroke="#c8cdd2"/>
+  <text class="sect" x="1020" y="600">Terminal states and expiry · cleanup side path</text>
+  <text class="sm" x="1020" y="627">completed · failed · cancelled · expired</text>
+  <path class="expiry" d="M1310 623H1370"/>
+  <text class="sm" x="1385" y="627">retention expires</text>
+  <path class="expiry" d="M1530 638V655H1262V677"/>
+  <rect class="card" x="1040" y="680" width="445" height="50"/>
+  <text class="nt" x="1262" y="701" text-anchor="middle">Garbage Collector</text>
+  <text class="ns" x="1262" y="719" text-anchor="middle">deletes expired job metadata and stored file objects</text>
+
+  <text class="tiny" x="48" y="842">Purple: async request dispatch · Blue: batch/model flow · Green: results · Red dashed: cancellation, errors, or configured retry · Gray dashed: expiry cleanup</text>
+</svg>

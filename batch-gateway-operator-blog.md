@@ -4,13 +4,11 @@
 
 ## Why batch inference?
 
-Imagine scoring a document corpus overnight or evaluating a new model. These jobs can take hours, but the team still needs progress, cancellation, retries, and results after the submitting client disconnects.
+Imagine scoring a document corpus overnight or evaluating a new model. A run can take hours; the application still needs progress, cancellation, transient-error handling, and results if the client disconnects.
 
-Without a batch service, every application must build that job layer around synchronous chat calls. The llm-d Batch Gateway provides an OpenAI-compatible Files and Batches workflow: upload JSONL, submit one job, poll its persisted state, and retrieve output or error files after the client disconnects. It sends requests through the existing llm-d serving path. The pinned source implements the [batch routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/batch/batch_handler.go#L65-L91) and [file routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/file/file_handler.go#L68-L100).
+Without a batch service, each application builds its own long-running job system around synchronous calls. Batch Gateway provides an OpenAI-compatible Files and Batches workflow: upload JSONL, submit a job, poll its status, and retrieve output or error files. It dispatches requests through the existing llm-d serving path. The pinned source implements the [batch routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/batch/batch_handler.go#L65-L91) and [file routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/file/file_handler.go#L68-L100).
 
-In this walkthrough, we enable the operator through an existing RHOAI DataScienceCluster, inspect the resources it creates, and submit a small batch. The cluster table is a template to complete with your test environment.
-
-By the end, you should know which operator owns each resource, what infrastructure your platform team must provide, and how to follow a batch job from upload to result file.
+This walkthrough enables the operator through an existing RHOAI DataScienceCluster, inspects its managed resources, and submits a small batch. The cluster inventory remains a template until replaced with evidence from the target environment.
 
 > **Version scope:** This walkthrough follows the 3.6 handoff and pinned source commits. Confirm the image/chart bundle and support phase for your exact release before production use; Red Hat's published 3.5 guide labels batch inference Technology Preview. Cluster-specific values are intentionally left for you to fill in.
 
@@ -20,42 +18,15 @@ Interactive inference is optimized around latency; batch inference is optimized 
 
 The API server handles `/v1/files` and `/v1/batches`; the core processor coordinates jobs and results; the async processor drains a request queue and calls the inference gateway; the garbage collector removes expired jobs and files.
 
-```text
-Client
-  │  POST /v1/files, POST /v1/batches, poll, download
-  ▼
-External Gateway / HTTPRoute ──► Batch API server
-                                      │
-                         PostgreSQL: job/file metadata
-                         S3 or filesystem: file contents
-                                      │
-                                      ▼
-                              Batch processor
-                                      │ request/result queue
-                                      ▼
-                            Async processor + gate
-                                      │
-                                      ▼
-                          Internal inference Gateway
-                                      │
-                         InferencePool → EPP → vLLM
-```
+![Architecture diagram showing operator ownership and the client-to-model-serving path, with PostgreSQL job storage separated from async request and result queues.](assets/batch-gateway-architecture.svg)
+
+*Figure 1. The Batch Gateway Operator manages the batch workloads; the platform team supplies the backing services, Gateway policies, and model route.*
 
 That queue is distinct from the PostgreSQL queue of batch *jobs*. In the 3.6-pinned source, PostgreSQL stores job metadata and also backs the core batch-job queue. Redis/Valkey or the experimental SQL transport is a separate choice for the asynchronous per-request dispatch queue.
 
 ## Inside the operator reconciliation chain
 
-On OpenShift, enabling the Batch Gateway Operator and creating a workload are separate operations. The RHOAI operator follows the DataScienceCluster setting and creates an `AIGateway` CR; the AI Gateway Operator then deploys the Batch Gateway Operator. The workload CR comes afterward:
-
-```text
-DataScienceCluster
-  └─ RHOAI operator reconciles aigateway as Managed
-       └─ creates AIGateway CR
-            └─ AI Gateway Operator sees batchGateway as Managed
-                 └─ installs Batch Gateway Operator + CRD
-                      └─ user creates LLMBatchGateway
-                           └─ Batch Gateway Operator creates workloads
-```
+On OpenShift, enabling the Batch Gateway Operator and creating a workload are separate operations. The RHOAI operator follows the DataScienceCluster setting and creates an `AIGateway` CR; the AI Gateway Operator then deploys the Batch Gateway Operator. The workload CR comes afterward, as Figure 1 shows.
 
 The AI Gateway Operator's [`AIGateway` API](https://github.com/opendatahub-io/ai-gateway-operator/blob/7cace2afd13f352a72b3c4555b001729092fa730/api/components/v1alpha1/aigateway_types.go#L32-L48) gives `batchGateway` its own `managementState`, defaulting to `Removed`. Its [controller](https://github.com/opendatahub-io/ai-gateway-operator/blob/7cace2afd13f352a72b3c4555b001729092fa730/internal/controller/aigateway/aigateway.go#L247-L265) includes the Batch Gateway Operator manifests only when the state is `Managed`. The Batch Gateway Operator then watches `LLMBatchGateway` resources. It does not create a workload just because its own Deployment is running.
 
@@ -83,7 +54,7 @@ Record the environment used for the walkthrough here. Replace each placeholder f
 
 ## Step 1: Enable Batch Gateway
 
-The handoff describes three entry points: RHAII on managed Kubernetes (xKS), chart-configured RHAII on OpenShift, and an existing OpenShift AI installation with a platform-managed DataScienceCluster. xKS uses a `Platform` resource; OpenShift uses the RHOAI operator and DSC. I use the existing-DSC path, avoiding an unverified 3.6 chart tag and a second operator.
+The 3.6 handoff covers xKS `Platform`, OpenShift charts, and an existing RHOAI DataScienceCluster. I use the DSC path; the chart artifact tags were not verified.
 
 First check that the installed cluster serves the expected DSC API and inspect the current object. Patch the platform-owned DSC; do not replace the full resource with a blog sample.
 
@@ -110,7 +81,7 @@ oc get deploy -n redhat-ods-applications
 oc get crd llmbatchgateways.batch.llm-d.ai
 ```
 
-For the other paths, follow their release-published chart procedures and set the Batch Gateway management state. Do not separately install the Batch Gateway Operator when AI Gateway owns it. The 3.6 handoff says the xKS and OpenShift chart artifact paths were not confirmed at review time; do not copy an unverified OCI tag.
+For xKS or chart-based OpenShift, follow release-published instructions only; the handoff did not confirm those 3.6 artifacts. Do not separately install the Batch Gateway Operator when AI Gateway owns it.
 
 This example is non-MaaS. For a MaaS installation, keep Batch Gateway `Managed` and configure the MaaS component, Gateway listener, route labels, TLS, and required pass-through headers according to the platform's MaaS procedure. MaaS changes the gateway/authentication path; it does not remove the separate `LLMBatchGateway` workload CR or the backing-service requirements.
 
@@ -185,7 +156,7 @@ spec:
         namespace: <gateway-namespace>
 ```
 
-Use exactly one file backend (`s3` or `fs`). The controller also requires a nonempty `resultPollTimeout` and at least one `modelGateways` entry. An enabled HTTPRoute needs `parentRefs`, and its Gateway listener must allow the Batch Gateway namespace.
+Use exactly one file backend (`s3` or `fs`). The optional `spec.fileStorage.retry` configures retries for transient file-storage errors only; it is not a generic inference retry policy ([API type](https://github.com/opendatahub-io/llm-d-batch-gateway-operator/blob/93f1c2c021a7ebae6f44c9e1dd05d7c9a34a46e8/api/v1alpha1/llmbatchgateway_types.go#L119-L195)). The controller also requires a nonempty `resultPollTimeout` and at least one `modelGateways` entry. An enabled HTTPRoute needs `parentRefs`, and its Gateway listener must allow the Batch Gateway namespace.
 
 The example passes `Authorization` to a protected model route; it does not authenticate the external Batch API. Configure that Gateway policy separately. The handler stores configured pass-through values with PostgreSQL batch metadata, as discussed below.
 
@@ -259,6 +230,10 @@ The operator's status is based on actual Deployments and the processor StatefulS
 4. The processor enqueues requests to the selected async transport. The async processor drains Redis sorted-set queues, applies dispatch gates and worker pools, and calls the internal inference gateway. A request's own endpoint overrides the queue's default path.
 5. The core processor correlates results with `custom_id`, checkpoints them, and writes output/error JSONL to the configured file store.
 6. `GET /v1/batches/{id}` reports state and output/error file IDs. The garbage collector removes expired metadata and file objects.
+
+![Concentric batch-job and per-request loops with side paths for cancellation, request errors, configured file-storage retries, and expiry cleanup.](assets/batch-gateway-lifecycle.svg)
+
+*Figure 2. The inner request loop runs for each JSONL line. Cancellation, per-request errors, configured storage retries, and retention expiry are side paths—not one generic retry or failure path.*
 
 **Redis and SQL are alternative async request/result transports, not alternatives to the PostgreSQL batch database.** The Red Hat 3.5 documentation describes Redis or Valkey for async queueing, PostgreSQL for batch metadata, and S3-compatible storage for file contents. The 3.6-pinned ODH sources also expose an SQL transport that reuses the PostgreSQL URL; llm-d-async creates its own async queue tables. That SQL option is documented as experimental. Its current result reads are destructive: a crash between consuming a result and the Batch Gateway checkpoint can lose the result and cause inference to be submitted again. It is not Redis-equivalent recovery, and its schema has no automatic cross-build migration. Use it only after verifying both promoted images and its support status for your exact 3.6 build.
 
