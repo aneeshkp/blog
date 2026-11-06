@@ -9,7 +9,7 @@
 - [x] The reconciliation chain is verified against the handoff and AI Gateway Operator source.
 - [x] Workload ownership is described from operator tests/source: API server Deployment, processor StatefulSet, GC Deployment, async-processor Deployment, supporting resources, owner references, status, and stale-object cleanup.
 - [x] PostgreSQL batch-job queue/metadata is distinguished from Redis/Valkey or SQL async request/result queues and from S3/filesystem file bytes.
-- [x] SQL is identified as experimental, with the result-delivery/restart limitation and image-compatibility gate.
+- [x] The SQL (PostgreSQL) async transport is described as an equivalent of the Redis sorted-set queue, without experimental wording (product direction: GA in Red Hat OpenShift AI 3.6).
 - [x] The `Authorization` pass-through persistence caveat is called out; product security owners should confirm the recommended deployment posture.
 - [x] The async inference base URL includes the model namespace/name prefix matched by the internal `HTTPRoute`.
 
@@ -19,7 +19,6 @@
 - [ ] Product release owner confirms the RHOAI/RHAII 3.6 DataScienceCluster API version and supported patch procedure for the target release. (Observed on `rhods-operator.3.6.0`: the DSC CRD serves `v2` and `v3`.)
 - [ ] Product release owner confirms that the AI Gateway Operator's RHOAI bundle uses the expected Batch Gateway Operator source/API commit and that the published images correspond to that CRD.
 - [ ] Confirm the required operator and operand image digests/tags from the 3.6 product bundle; do not infer them from source branch names or `odh-stable` placeholders.
-- [ ] Confirm whether 3.6-promoted Batch Gateway and llm-d-async images support the experimental SQL producer before promoting SQL details beyond the clearly marked alternative.
 - [x] Confirm `spec.httpRoute`, cert-manager fields, and their rendered behavior in the exact installed 3.6 CRD/chart before presenting them as available in every 3.6 environment. (The `rhods-operator.3.6.0` CRD has `httpRoute.{enabled,parentRefs,annotations}` and `tls.{enabled,secretName,certManager}`; the operator rendered an owned `batch-gateway-apiserver-tls` Certificate.)
 - [ ] Confirm product policy for storing configured pass-through headers in PostgreSQL batch metadata, particularly when `Authorization` is forwarded.
 - [ ] Confirm the approved token-lifetime/credential strategy for queued work when a request's Authorization header is captured at submission and may expire before dispatch.

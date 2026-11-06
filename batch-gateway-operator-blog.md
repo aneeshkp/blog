@@ -1,4 +1,4 @@
-# Inside the llm-d Batch Gateway Operator: Deploying batch inference on Red Hat AI Inference 3.6
+# Inside the Batch Gateway Operator: Deploying batch inference on Red Hat OpenShift AI 3.6
 
 *A hands-on exploration of operator-managed batch inference, Kubernetes resources, and asynchronous request processing.*
 
@@ -22,7 +22,7 @@ The API server handles `/v1/files` and `/v1/batches`; the core processor coordin
 
 *Figure 1. The Batch Gateway Operator manages the batch workloads; the platform team supplies the backing services, Gateway policies, and model route.*
 
-That queue is distinct from the PostgreSQL queue of batch *jobs*. In the 3.6-pinned source, PostgreSQL stores job metadata and also backs the core batch-job queue. Redis/Valkey or the experimental SQL transport is a separate choice for the asynchronous per-request dispatch queue.
+That queue is distinct from the PostgreSQL queue of batch *jobs*. PostgreSQL stores job metadata and also backs the core batch-job queue. The asynchronous per-request dispatch queue is a separate choice: Redis/Valkey, or PostgreSQL through the SQL transport.
 
 ## Inside the operator reconciliation chain
 
@@ -38,7 +38,7 @@ The generated core components are an API server Deployment, a processor Stateful
 |---|---|
 | RHOAI and AI Gateway Operators | Platform integration and Batch Gateway Operator installation |
 | Batch Gateway Operator | API server, processor, async processor, garbage collector, and configured optional resources |
-| Platform team | PostgreSQL, Redis/Valkey or experimental SQL, S3/filesystem storage, model routing, and Gateway policies |
+| Platform team | PostgreSQL, Redis/Valkey (unless the async queue uses PostgreSQL), S3/filesystem storage, model routing, and Gateway policies |
 
 ## My Kubernetes cluster
 
@@ -275,7 +275,7 @@ The operator's status is based on actual Deployments and the processor StatefulS
 
 *Figure 2. The inner request loop runs for each JSONL line. Cancellation, per-request errors, configured storage retries, and retention expiry are side paths—not one generic retry or failure path.*
 
-**Redis and SQL are alternative async request/result transports, not alternatives to the PostgreSQL batch database.** The Red Hat 3.5 documentation describes Redis or Valkey for async queueing, PostgreSQL for batch metadata, and S3-compatible storage for file contents. The 3.6-pinned ODH sources also expose an SQL transport that reuses the PostgreSQL URL; llm-d-async creates its own async queue tables. That SQL option is documented as experimental. Its current result reads are destructive: a crash between consuming a result and the Batch Gateway checkpoint can lose the result and cause inference to be submitted again. It is not Redis-equivalent recovery, and its schema has no automatic cross-build migration. Use it only after verifying both promoted images and its support status for your exact 3.6 build.
+**Redis and SQL are alternative async request/result transports, not alternatives to the PostgreSQL batch database.** With Redis or Valkey, the async queue is a sorted set kept in deadline order. With the SQL transport (`asyncConfig.sql`), the async processor keeps the same semantics in PostgreSQL: earliest-deadline-first dispatch, leased claims that are redelivered if a dispatcher stops, per-queue gates, and backlog metrics. It reuses the `postgresql-url` from the same Secret and creates its own async queue tables next to the batch tables, so the deployment needs no Redis. Budget PostgreSQL connections for both the Batch Gateway processor and the async processor.
 
 ## Step 5: Submit and retrieve a real batch
 
