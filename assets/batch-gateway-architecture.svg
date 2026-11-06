@@ -32,7 +32,7 @@
     <rect class="card" x="881" y="170" width="218" height="68"/><text class="nt compact" x="990" y="198">Batch Gateway Operator</text><text class="ns" x="990" y="219">controller + CRD</text>
     <rect class="card" x="1257" y="170" width="290" height="68"/><text class="nt" x="1402" y="198">LLMBatchGateway CR</text><text class="ns" x="1402" y="219">created by platform engineer</text>
   </g>
-  <path class="red" d="M208 204h23M415 204h24M615 204h24M853 204h24M1253 204h-149"/>
+  <path class="red" d="M208 204h23"/><path class="red" d="M415 204h24"/><path class="red" d="M615 204h24"/><path class="red" d="M853 204h24"/><path class="red" d="M1253 204h-149"/>
   <text class="lab" x="1176" y="192" text-anchor="middle">reconciles</text>
   <text class="sm" x="42" y="278">The operator is installed first; only the separate workload CR asks it to create a Batch Gateway instance.</text>
   <text class="sm" x="42" y="298">The platform supplies PostgreSQL, file storage, async transport, Gateway policies, and model routing.</text>
@@ -54,9 +54,9 @@
   <text class="tiny" x="892" y="423" text-anchor="middle">one selected async transport</text>
   <rect class="card" x="813" y="436" width="158" height="58"/><text class="nt compact" x="892" y="461" text-anchor="middle">Async Request Queue</text><text class="ns" x="892" y="480" text-anchor="middle">per-request dispatch</text>
   <rect class="card" x="813" y="545" width="158" height="58"/><text class="nt compact" x="892" y="570" text-anchor="middle">Async Result Queue</text><text class="ns" x="892" y="589" text-anchor="middle">per-request results</text>
-  <path class="blue" d="M160 467h16M364 467h20"/>
-  <path class="purple" d="M788 465h21M973 465h23"/>
-  <path class="blue" d="M1172 467h14M1380 467h16"/>
+  <path class="blue" d="M160 467h16"/><path class="blue" d="M364 467h20"/>
+  <path class="purple" d="M788 465h21"/><path class="purple" d="M973 465h23"/>
+  <path class="blue" d="M1172 467h14"/><path class="blue" d="M1380 467h16"/>
   <path class="green" d="M1485 425V393H1086V424"/>
   <path class="green" d="M1086 508v65H975"/>
   <path class="green" d="M809 574H700V510"/>
