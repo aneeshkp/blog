@@ -8,9 +8,9 @@ Imagine scoring a document corpus overnight or evaluating a new model. A run can
 
 Without a batch service, each application builds its own long-running job system around synchronous calls. Batch Gateway provides an OpenAI-compatible Files and Batches workflow: upload JSONL, submit a job, poll its status, and retrieve output or error files. It dispatches requests through the existing llm-d serving path. The pinned source implements the [batch routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/batch/batch_handler.go#L65-L91) and [file routes](https://github.com/opendatahub-io/batch-gateway/blob/0947400279d3dbdf892497c8435c4242c0386bf8/internal/apiserver/file/file_handler.go#L68-L100).
 
-This walkthrough enables the operator through an existing RHOAI DataScienceCluster, inspects its managed resources, and submits a small batch. The cluster inventory remains a template until replaced with evidence from the target environment.
+This walkthrough enables the operator through an existing RHOAI DataScienceCluster, inspects its managed resources, and submits a small batch. The cluster details and command output below were captured from a Red Hat OpenShift AI 3.6 test cluster.
 
-> **Version scope:** This walkthrough follows the 3.6 handoff and pinned source commits. Confirm the image/chart bundle and support phase for your exact release before production use; Red Hat's published 3.5 guide labels batch inference Technology Preview. Cluster-specific values are intentionally left for you to fill in.
+> **Version scope:** This walkthrough follows the 3.6 handoff and pinned source commits, and the inspection output comes from a cluster running `rhods-operator.3.6.0`. Confirm the image/chart bundle and support phase for your exact release before production use; Red Hat's published 3.5 guide labels batch inference Technology Preview.
 
 ## What Batch Gateway adds to llm-d
 
@@ -42,19 +42,21 @@ The generated core components are an API server Deployment, a processor Stateful
 
 ## My Kubernetes cluster
 
-Record the environment used for the walkthrough here. Replace each placeholder from your cluster; the commands below are inspection commands, not captured output.
+These are the values from the cluster used for this walkthrough. It is a CPU-only test cluster: the model is the llm-d inference simulator, so it demonstrates the control and data paths, not inference performance.
 
-| Item | Value to record |
+| Item | Value |
 |---|---|
-| Kubernetes distribution and version | `<OpenShift distribution/version; verify with oc version and clusterversion>` |
-| Red Hat AI Inference / OpenShift AI | `3.6 <exact release/build or CSV>` |
-| GPU and model | `<GPU type/count; LLMInferenceService and model ID>` |
-| Namespaces | `redhat-ods-applications`, `<batch namespace>`, `<model namespace>`, `<gateway namespace>` |
-| Relevant components | `<RHOAI operator, AI Gateway Operator, Batch Gateway Operator, KServe/llm-d, gateway implementation>` |
+| Kubernetes distribution and version | OpenShift 4.22.18 (Kubernetes v1.35.8), hosted control plane on OpenShift Virtualization |
+| Red Hat OpenShift AI | `rhods-operator.3.6.0` |
+| GPU and model | No GPU; `LLMInferenceService` `llm/batch-simulator` (llm-d inference simulator) serving model ID `test/batch-gateway-model` |
+| Namespaces | `redhat-ods-applications` (operators), `batch-api` (Batch Gateway), `llm` (model), `openshift-ingress` (gateways) |
+| Relevant components | RHOAI operator, `ai-gateway-operator` and `llm-d-batch-gateway-operator` Deployments, `AIGateway` `default-aigateway`, PostgreSQL, Redis, MinIO (S3-compatible) |
+
+You can collect the same facts with `oc version`, `oc get clusterversion`, `oc get csv -n redhat-ods-operator`, and `oc get llminferenceservice -A`.
 
 ## Step 1: Enable Batch Gateway
 
-The 3.6 handoff covers xKS `Platform`, OpenShift charts, and an existing RHOAI DataScienceCluster. I use the DSC path; the chart artifact tags were not verified.
+The 3.6 handoff covers xKS `Platform`, OpenShift charts, and an existing RHOAI DataScienceCluster. I use the DSC path; the chart artifact tags were not verified. On this cluster the DSC CRD serves `v2` and `v3`.
 
 First check that the installed cluster serves the expected DSC API and inspect the current object. Patch the platform-owned DSC; do not replace the full resource with a blog sample.
 
@@ -79,6 +81,19 @@ oc get datasciencecluster default-dsc -o yaml
 oc get aigateway -o yaml
 oc get deploy -n redhat-ods-applications
 oc get crd llmbatchgateways.batch.llm-d.ai
+```
+
+On the test cluster, the DSC reports `aigateway` and `batchGateway` as `Managed`, the `AIGateway` is ready, and both operators run in `redhat-ods-applications`:
+
+```text
+$ oc get aigateway
+NAME                READY   REASON   VERSION
+default-aigateway   True             1.26.10
+
+$ oc get deploy -n redhat-ods-applications ai-gateway-operator llm-d-batch-gateway-operator
+NAME                           READY   UP-TO-DATE   AVAILABLE   AGE
+ai-gateway-operator            1/1     1            1           39h
+llm-d-batch-gateway-operator   1/1     1            1           39h
 ```
 
 For xKS or chart-based OpenShift, follow release-published instructions only; the handoff did not confirm those 3.6 artifacts. Do not separately install the Batch Gateway Operator when AI Gateway owns it.
@@ -207,18 +222,43 @@ oc get certificate -n "$NS" -l app.kubernetes.io/instance=batch-gateway
 oc get events -n "$NS" --sort-by=.lastTimestamp
 ```
 
-Here is the resource inventory asserted by the operator's reconcile tests. It is source-derived, not output from a running cluster; generated names and readiness counts vary by release and configuration.
+On the test cluster the gateway lives in `batch-api` and reports every component ready:
 
-| Kind | Component |
+```text
+$ oc get llmbatchgateway -n batch-api
+NAME            READY   API-READY   PROC-READY   GC-READY   ASYNC-READY   AGE
+batch-gateway   True    1           1            1          1             39h
+
+$ oc get llmbatchgateway batch-gateway -n batch-api \
+    -o jsonpath='{range .status.conditions[*]}{.type}={.status} {.reason}{"\n"}{end}'
+APIServerAvailable=True Available
+ProcessorAvailable=True Available
+GCAvailable=True Available
+AsyncProcessorAvailable=True Available
+Ready=True AllComponentsReady
+
+$ oc get deploy,statefulset -n batch-api -l app.kubernetes.io/instance=batch-gateway
+NAME                                            READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/batch-gateway-apiserver         1/1     1            1           39h
+deployment.apps/batch-gateway-async-processor   1/1     1            1           39h
+deployment.apps/batch-gateway-gc                1/1     1            1           39h
+
+NAME                                       READY   AGE
+statefulset.apps/batch-gateway-processor   1/1     39h
+```
+
+Each of those workloads has an owner reference to `LLMBatchGateway/batch-gateway`. The full inventory on this cluster matches the operator's reconcile tests, with one difference worth knowing:
+
+| Kind | Observed on the 3.6 test cluster |
 |---|---|
-| Deployment ×3 | API server, garbage collector, async processor |
-| StatefulSet ×1 | Core processor |
-| Services ×2 | API server Service and processor headless Service |
-| ConfigMaps | API server, processor, GC, and async configuration |
+| Deployment ×3 | `batch-gateway-apiserver`, `batch-gateway-gc`, `batch-gateway-async-processor` |
+| StatefulSet ×1 | `batch-gateway-processor` |
+| Services ×2 | `batch-gateway-apiserver` (ports 8000 and 8081) and headless `batch-gateway-processor` |
+| ConfigMaps ×3 | API server, processor, and GC configuration; the async processor receives its transport and queue configuration as container arguments instead |
 | ServiceAccounts ×4 | API server, processor, GC, async processor |
-| Optional | HTTPRoute, Certificate, ServiceMonitor/PodMonitor/PrometheusRule |
+| Certificate | `batch-gateway-apiserver-tls`, owned by the `LLMBatchGateway` because `spec.tls.certManager` is set |
 
-The Route and Certificate queries are conditional: they return resources only when those CR fields are enabled and the corresponding CRDs are installed. Monitoring CRs are similarly optional. To inspect the API contract actually installed by the platform, use `oc explain llmbatchgateway.spec --recursive` rather than assuming a newer upstream field is present.
+On this cluster the external `batch-route` HTTPRoute was created by the platform installation, not by `spec.httpRoute`, so it has no owner reference. The Route and Certificate queries above return operator-owned resources only when those CR fields are enabled and the corresponding CRDs are installed. Monitoring CRs are similarly optional. To inspect the API contract actually installed by the platform, use `oc explain llmbatchgateway.spec --recursive` rather than assuming a newer upstream field is present; the 3.6 CRD on this cluster includes `httpRoute` (`enabled`, `parentRefs`, `annotations`) and `tls` (`enabled`, `secretName`, `certManager`).
 
 The operator's status is based on actual Deployments and the processor StatefulSet. It reports component replica counts and a `Ready` condition; the controller requires the API server, processor, garbage collector, and async processor to be available. A successfully created custom resource is not the same as a ready workload.
 
@@ -277,6 +317,15 @@ I use two different checks because the API server and controller validate differ
 
 ```bash
 bash batch-gateway-examples/validate.sh
+```
+
+Against the 3.6 CRD on the test cluster, the script reports the expected rejection:
+
+```text
+$ bash batch-gateway-examples/validate.sh
+PASS: API-server admission rejected the invalid transport combination (expected negative test).
+To test controller semantic validation in a disposable namespace, apply invalid-no-model-gateway.yaml
+and verify Ready=False with reason ValidationFailed, then delete that LLMBatchGateway.
 ```
 
 That script expects the API server to reject the manifest; rejection is a **passing negative-input test**, not an operator failure. A different mistake—such as omitting `modelGateways`—passes the CRD schema but fails controller semantic validation. In a disposable namespace, apply `invalid-no-model-gateway.yaml`, then inspect the status and events:
