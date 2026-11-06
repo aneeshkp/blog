@@ -1,4 +1,4 @@
-# What's new in llm-d Batch Gateway in Red Hat OpenShift AI 3.6
+# What's new in Batch Gateway in Red Hat OpenShift AI 3.6
 
 *Batch inference that waits for spare capacity: one dispatch path, a PostgreSQL queue option, and dispatch gates that keep interactive traffic first.*
 
@@ -6,9 +6,9 @@
 
 Some AI work doesn't need an answer right away. Scoring a document collection overnight, evaluating a new model against thousands of prompts, or labeling a dataset can all run in the background, as long as the job finishes within a reasonable window.
 
-llm-d Batch Gateway is built for that work. You upload a file of requests, submit it as a batch job, and come back later for the results. The API follows the familiar OpenAI Files and Batches pattern, so existing clients and tools work with little or no change. Behind the API, Batch Gateway sends each request to the same llm-d model servers that handle your interactive traffic, but it does so carefully: batch work fills spare capacity instead of competing with users who are waiting for a response.
+Batch Gateway in Red Hat OpenShift AI, built on the open source llm-d project, is designed for that work. You upload a file of requests, submit it as a batch job, and come back later for the results. The API follows the familiar OpenAI Files and Batches pattern, so existing clients and tools work with little or no change. Behind the API, Batch Gateway sends each request to the same llm-d model servers that handle your interactive traffic, but it does so carefully: batch work fills spare capacity instead of competing with users who are waiting for a response.
 
-With Red Hat OpenShift AI 3.6, Batch Gateway is generally available. This post explains what changed in 3.6 and the ideas behind it, without the YAML.
+With Red Hat OpenShift AI 3.6, Batch Gateway is generally available. This post explains what changed in Red Hat OpenShift AI 3.6 Batch Gateway and the ideas behind it, without the YAML.
 
 ![Diagram of the 3.6 Batch Gateway flow: Batch API, batch processor, request queue in Redis or PostgreSQL, dispatcher with worker pools and dispatch gates, inference gateway with priority bands, and model servers. PostgreSQL stores jobs and metadata; object storage stores files.](assets/batch-gateway-36-concept.svg)
 
@@ -24,7 +24,7 @@ A batch job moves through a few simple stages:
 4. **Dispatcher.** A pool of workers takes requests off the queue. Before each send, a *dispatch gate* checks whether the model has room.
 5. **Inference gateway and model servers.** The llm-d inference gateway routes each request to a model server, giving interactive traffic priority over batch traffic.
 
-The Batch Gateway Operator deploys and manages all of these components from a single `LLMBatchGateway` resource. You enable the operator once through OpenShift AI, then create one `LLMBatchGateway` for each batch service you want to run.
+The Batch Gateway Operator deploys and manages all of these components from a single `LLMBatchGateway` resource. You enable the operator once through Red Hat OpenShift AI, then create one `LLMBatchGateway` for each batch service you want to run.
 
 ## What's new in 3.6
 
@@ -118,18 +118,18 @@ To upgrade smoothly:
 
 1. Let running batches finish, or stop submitting new ones and wait for the queue to drain.
 2. On 3.5, switch the gateway to asynchronous dispatch: add an `asyncConfig` with a Redis queue and replace `globalInferenceGateway` with a `modelGateways` entry for your model. 3.5 already supports this mode.
-3. Upgrade OpenShift AI to 3.6.
+3. Upgrade Red Hat OpenShift AI to 3.6.
 4. Optionally, move the queue from Redis to PostgreSQL once the Redis queue is empty.
 
 Job records in PostgreSQL and files in object storage are kept across the change.
 
 ## Summary
 
-Batch Gateway in OpenShift AI 3.6 is about sending batch work at the right time. Every request now takes one well-defined path: it waits in a queue, a dispatcher checks a gate before sending it, and the inference gateway keeps interactive users first. PostgreSQL can now hold that queue, so you can run batch inference with one database instead of a database and a cache. And because the model only sees batch traffic when it has room, you can put idle GPU capacity to work without slowing down the people who are waiting for answers.
+Batch Gateway in Red Hat OpenShift AI 3.6 is about sending batch work at the right time. Every request now takes one well-defined path: it waits in a queue, a dispatcher checks a gate before sending it, and the inference gateway keeps interactive users first. PostgreSQL can now hold that queue, so you can run batch inference with one database instead of a database and a cache. And because the model only sees batch traffic when it has room, you can put idle GPU capacity to work without slowing down the people who are waiting for answers.
 
 ## Learn more
 
 - [llm-d project](https://llm-d.ai)
-- [llm-d Batch Gateway on GitHub](https://github.com/llm-d/llm-d-batch-gateway)
+- [llm-d Batch Gateway (upstream project) on GitHub](https://github.com/llm-d/llm-d-batch-gateway)
 - [llm-d async dispatcher on GitHub](https://github.com/llm-d/llm-d-async)
 - [OpenAI Batch API guide](https://platform.openai.com/docs/guides/batch)
