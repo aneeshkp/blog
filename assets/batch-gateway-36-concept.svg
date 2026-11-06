@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="t d">
+  <title id="t">How a batch request flows through llm-d Batch Gateway in 3.6</title>
+  <desc id="d">Batch API, batch processor, request queue in Redis or PostgreSQL, dispatcher with worker pools and dispatch gates, inference gateway with priority bands, and model servers. Results return through the queue. PostgreSQL stores jobs and object storage stores files.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#1f5fae"/></marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#23803a"/></marker>
+    <style>
+      text{font-family:"Red Hat Text",Arial,Helvetica,sans-serif;fill:#151515;text-anchor:middle}
+      .h{font-size:34px;font-weight:700;text-anchor:start}
+      .s{font-size:20px;fill:#4d4d4d;text-anchor:start}
+      .n{font-size:22px;font-weight:700}
+      .d{font-size:17px;fill:#383838}
+      .box{fill:#fff;stroke:#8a8d90;stroke-width:2;rx:12}
+      .q{fill:#f2f7fd;stroke:#1f5fae;stroke-width:2.5;rx:12}
+      .gate{fill:#fff8e6;stroke:#b98412;stroke-width:2.5;rx:12}
+      .store{fill:#f5f5f5;stroke:#b8bbbe;stroke-width:2;rx:12}
+      .flow{fill:none;stroke:#1f5fae;stroke-width:3;marker-end:url(#a)}
+      .back{fill:none;stroke:#23803a;stroke-width:3;stroke-dasharray:9 6;marker-end:url(#g)}
+      .link{fill:none;stroke:#8a8d90;stroke-width:2;stroke-dasharray:4 5}
+      .lab{font-size:17px;font-weight:700;fill:#23803a}
+    </style>
+  </defs>
+  <rect width="1200" height="640" fill="#fff"/>
+  <text class="h" x="40" y="58">One dispatch path for every batch request</text>
+  <text class="s" x="40" y="92">Requests wait in a queue and are sent only when the model has room</text>
+
+  <rect class="box" x="30" y="150" width="170" height="130"/>
+  <text class="n" x="115" y="196">Batch API</text>
+  <text class="d" x="115" y="226">upload · submit</text>
+  <text class="d" x="115" y="250">poll · download</text>
+
+  <rect class="box" x="225" y="150" width="170" height="130"/>
+  <text class="n" x="310" y="196">Batch</text>
+  <text class="n" x="310" y="222">processor</text>
+  <text class="d" x="310" y="252">splits the job</text>
+
+  <rect class="q" x="420" y="150" width="170" height="130"/>
+  <text class="n" x="505" y="196">Request</text>
+  <text class="n" x="505" y="222">queue</text>
+  <text class="d" x="505" y="252">Redis or PostgreSQL</text>
+
+  <rect class="gate" x="615" y="150" width="170" height="130"/>
+  <text class="n" x="700" y="196">Dispatcher</text>
+  <text class="d" x="700" y="226">worker pools</text>
+  <text class="d" x="700" y="250">dispatch gates</text>
+
+  <rect class="box" x="810" y="150" width="170" height="130"/>
+  <text class="n" x="895" y="196">Inference</text>
+  <text class="n" x="895" y="222">gateway</text>
+  <text class="d" x="895" y="252">priority bands</text>
+
+  <rect class="box" x="1005" y="150" width="165" height="130"/>
+  <text class="n" x="1087" y="196">Model</text>
+  <text class="n" x="1087" y="222">servers</text>
+  <text class="d" x="1087" y="252">vLLM</text>
+
+  <path class="flow" d="M200 215h21"/>
+  <path class="flow" d="M395 215h21"/>
+  <path class="flow" d="M590 215h21"/>
+  <path class="flow" d="M785 215h21"/>
+  <path class="flow" d="M980 215h21"/>
+
+  <path class="back" d="M700 280V335H310V284"/>
+  <text class="lab" x="505" y="327">results flow back through the queue</text>
+  <rect class="gate" x="420" y="380" width="440" height="110"/>
+  <text class="n" x="640" y="420">Dispatch gate</text>
+  <text class="d" x="640" y="452">“Is there room?” → send · wait · retry later</text>
+  <path class="link" d="M700 280V376"/>
+
+  <rect class="box" x="880" y="380" width="290" height="110" style="fill:#f4f9f4;stroke:#23803a"/>
+  <text class="n" x="1025" y="420">Interactive first</text>
+  <text class="d" x="1025" y="452">batch uses spare capacity,</text>
+  <text class="d" x="1025" y="474">in deadline order</text>
+  <path class="link" d="M895 280V376"/>
+
+  <rect class="store" x="30" y="380" width="365" height="110"/>
+  <text class="n" x="212" y="420">PostgreSQL</text>
+  <text class="d" x="212" y="452">jobs, progress, metadata</text>
+  <text class="d" x="212" y="474">(and, optionally, the request queue)</text>
+
+  <rect class="store" x="30" y="510" width="365" height="100"/>
+  <text class="n" x="212" y="548">Object storage</text>
+  <text class="d" x="212" y="580">input and output JSONL files</text>
+  <path class="link" d="M115 280V376"/>
+</svg>
